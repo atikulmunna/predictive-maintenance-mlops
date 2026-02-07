@@ -77,13 +77,20 @@ graph TB
     style API fill:#FFD54F
 ```
 
-**Model Performance Comparison:**
-| Metric | XGBoost | LSTM | Ensemble |
-|--------|---------|------|----------|
-| F2 Score | **0.9915** | 0.8750 | Best of both |
-| Precision | **0.9667** | 0.8260 | Balanced |
-| Recall | **0.9978** | 0.8882 | High Detection |
-| ROC-AUC | 0.9999 | 0.9898 | **0.9950** |
+**Current Benchmark (Test Set, updated 2026-02-07):**
+| Metric | XGBoost Baseline | LSTM Temporal | Tuned Ensemble (0.775/0.225) |
+|--------|-------------------|---------------|-------------------------------|
+| F2 Score | 0.9923 | 0.8637 | **0.9932** |
+| Precision | 0.9707 | 0.8520 | **0.9748** |
+| Recall | **0.9978** | 0.8667 | **0.9978** |
+| ROC-AUC | **0.9999** | 0.9869 | 0.9993 |
+
+**Known Decision**
+- Primary metric is F2.
+- Production selection uses validation-gated fallback (from `data/models/ensemble_metrics.json`):
+  - Use ensemble only if validation F2 gain is at least `min_f2_gain_for_ensemble` (currently `0.005`) over XGBoost reference.
+  - Otherwise select XGBoost.
+- Current selected production model: **XGBoost** (`selected_model: "xgboost"`).
 
 ### Training Pipeline
 
@@ -198,13 +205,16 @@ jupyter lab
 
 ```powershell
 # Train XGBoost baseline
-python src/training/trainer.py --model xgboost --experiment baseline
+python -m src.training.trainer --model xgboost --data-dir data
 
-# Train LSTM (GPU-accelerated)
-python src/training/trainer.py --model lstm --device cuda --epochs 10
+# Train LSTM temporal model
+python -m src.training.trainer --model lstm --data-dir data --epochs 100 --batch-size 32
 
-# Train ensemble
-python src/training/trainer.py --model ensemble
+# Run ensemble selection (validation-tuned blending + fallback policy)
+python -m src.training.trainer --model ensemble --data-dir data --min-f2-gain 0.005
+
+# Run full pipeline sequentially: XGBoost -> LSTM -> Ensemble
+python -m src.training.trainer --model all --data-dir data
 ```
 
 ### 3. Start API Server
@@ -325,20 +335,8 @@ predictive-maintenance-mlops/
 
 ---
 
-## 📈 Performance Targets
 
-| Metric | Target | Status |
-|--------|--------|--------|
-| F2 Score | > 0.80 | 🔄 In Progress |
-| Precision | > 0.65 | 🔄 In Progress |
-| Recall | > 0.85 | 🔄 In Progress |
-| API Latency (p95) | < 50ms | ⏳ Not Started |
-| Training Time | < 15 min | ⏳ Not Started |
-| Test Coverage | > 85% | ⏳ Not Started |
-
----
-
-## 🛠️ Technology Stack
+## 🛠️ Tech Stack
 
 - **Language**: Python 3.11
 - **ML Frameworks**: PyTorch 2.2+, XGBoost 2.0+, Scikit-learn
