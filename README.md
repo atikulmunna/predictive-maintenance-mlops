@@ -5,7 +5,7 @@
 [![CUDA](https://img.shields.io/badge/CUDA-11.8-green.svg)](https://developer.nvidia.com/cuda-toolkit)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-> A production-ready machine learning platform for industrial equipment failure prediction, featuring ensemble models (XGBoost + LSTM), real-time API serving, automated retraining, and comprehensive MLOps infrastructure.
+> A production-ready machine learning platform for industrial equipment failure prediction, featuring validation-tuned ensemble models (XGBoost + LSTM), real-time API serving, automated retraining, and comprehensive MLOps infrastructure.
 
 ![Project Status](https://img.shields.io/badge/status-in%20development-yellow)
 
@@ -17,7 +17,7 @@ This platform demonstrates end-to-end MLOps capabilities by predicting equipment
 
 ### Key Features
 
-- **Ensemble Models**: XGBoost (60%) + LSTM (40%) achieving F2 > 0.80
+- **Ensemble Models**: Validation-tuned XGBoost + LSTM blending with fallback policy
 - **GPU Acceleration**: PyTorch LSTM training optimized for NVIDIA RTX 5060 Mobile (8GB VRAM)
 - **REST API**: FastAPI service with <50ms latency (p95)
 - **Explainability**: SHAP values for model interpretability
@@ -39,8 +39,8 @@ graph TB
     end
     
     subgraph ML["Model Layer"]
-        XGB["XGBoost<br/>60% weight<br/>F2: 0.9915"]
-        LSTM["LSTM + Attention<br/>40% weight<br/>F2: 0.8750"]
+        XGB["XGBoost<br/>validation-tuned weight<br/>F2: 0.9915"]
+        LSTM["LSTM + Attention<br/>validation-tuned weight<br/>F2: 0.8750"]
     end
     
     subgraph IL["Inference Layer"]
@@ -237,8 +237,10 @@ curl -X POST "http://localhost:8000/predict" \
   -H "Content-Type: application/json" \
   -d '{
     "equipment_id": "engine_001",
-    "sensor_readings": {...},
-    "operational_settings": {...}
+    "sequence": [
+      {"op_setting_1": 0.0, "op_setting_2": 0.0, "...": 0.0},
+      {"op_setting_1": 0.1, "op_setting_2": 0.0, "...": 0.0}
+    ]
   }'
 
 # Using Python
@@ -246,6 +248,8 @@ import requests
 response = requests.post("http://localhost:8000/predict", json={...})
 print(response.json())
 ```
+
+`sequence` must contain 30 timesteps (or the configured sequence length), and each timestep must include all features listed in `data/models/feature_names.json`.
 
 ### 5. Run Tests
 
