@@ -28,27 +28,12 @@ This platform demonstrates end-to-end MLOps capabilities by predicting equipment
 
 ### Architecture Highlights
 
-```
-┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-│   FastAPI    │─────▶│     Redis    │      │  PostgreSQL  │
-│  Prediction  │      │Feature Store │      │  Data Lake   │
-│     API      │◀─────│  <5ms read   │      │  + MLflow    │
-└──────────────┘      └──────────────┘      └──────────────┘
-       │                                             │
-       └─────────────────────┬───────────────────────┘
-                             │
-                    ┌────────▼────────┐
-                    │  Training       │
-                    │  Pipeline       │
-                    │  (Prefect)      │
-                    └─────────────────┘
-                             │
-                    ┌────────▼────────┐
-                    │  Monitoring     │
-                    │  Prometheus     │
-                    │  + Grafana      │
-                    └─────────────────┘
-```
+See [**Detailed Architecture Diagrams**](assets/architecture.md) for comprehensive system design including:
+- **System Architecture**: Data layer, model layer, inference layer, training pipeline, monitoring
+- **Data Flow**: Request/response flow with feature store and ensemble inference
+- **Training Pipeline**: Data preprocessing, feature engineering, model training, evaluation
+- **Model Comparison**: XGBoost vs LSTM performance metrics and trade-offs
+- **Deployment Architecture**: Kubernetes orchestration, load balancing, scaling
 
 ---
 
