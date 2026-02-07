@@ -2,7 +2,7 @@
 
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.2+-red.svg)](https://pytorch.org/)
-[![CUDA](https://img.shields.io/badge/CUDA-11.8-green.svg)](https://developer.nvidia.com/cuda-toolkit)
+[![CUDA](https://img.shields.io/badge/CUDA-13.0-green.svg)](https://developer.nvidia.com/cuda-toolkit)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > A production-ready machine learning platform for industrial equipment failure prediction, featuring validation-tuned ensemble models (XGBoost + LSTM), real-time API serving, automated retraining, and comprehensive MLOps infrastructure.
@@ -121,7 +121,7 @@ graph LR
 - **Software**: 
   - Windows 10/11 with WSL2 (or Linux/macOS)
   - [Anaconda](https://www.anaconda.com/download) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
-  - [NVIDIA CUDA 11.8](https://developer.nvidia.com/cuda-11-8-0-download-archive)
+  - [NVIDIA CUDA 13.0](https://developer.nvidia.com/cuda-toolkit)
   - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for deployment)
 
 ### Installation (10 minutes)
@@ -140,7 +140,7 @@ graph LR
    This script will:
    - Create conda environment `pred-maint`
    - Install Python 3.11
-   - Install PyTorch with CUDA 11.8
+   - Install PyTorch with CUDA 13.0
    - Install all project dependencies
    - Create `.env` configuration file
    - Verify GPU setup
@@ -167,7 +167,7 @@ conda create -n pred-maint python=3.11 -y
 conda activate pred-maint
 
 # Install PyTorch with CUDA
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia -y
+conda install pytorch torchvision torchaudio pytorch-cuda=13.0 -c pytorch -c nvidia -y
 
 # Install project dependencies
 pip install -r requirements/base.txt
