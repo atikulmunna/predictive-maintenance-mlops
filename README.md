@@ -343,12 +343,13 @@ predictive-maintenance-mlops/
 ## 🛠️ Tech Stack
 
 - **Language**: Python 3.11
-- **ML Frameworks**: PyTorch 2.2+, XGBoost 2.0+, Scikit-learn
+- **ML Frameworks**: TensorFlow/Keras 2.15+, XGBoost 2.0+, Scikit-learn, imbalanced-learn
 - **API**: FastAPI, Uvicorn
-- **Database**: PostgreSQL 15, Redis 7
-- **MLOps**: MLflow, Prefect, Evidently AI
-- **Monitoring**: Prometheus, Grafana
-- **Containerization**: Docker, Docker Compose
-- **Testing**: pytest, Locust
+- **Model Artifacts**: JSON, H5, Pickle (`data/models/*`)
+- **Experiment Tracking**: MLflow (notebook workflow + local `mlruns`)
+- **Orchestration & Drift (Planned)**: Prefect, Evidently AI
+- **Monitoring (Planned)**: Prometheus, Grafana
+- **Containerization (Planned)**: Docker, Docker Compose
+- **Testing**: pytest
 - **Explainability**: SHAP
-- **GPU**: CUDA 11.8
+- **GPU**: CUDA 13.0
