@@ -28,12 +28,81 @@ This platform demonstrates end-to-end MLOps capabilities by predicting equipment
 
 ### Architecture Highlights
 
-See [**Detailed Architecture Diagrams**](assets/architecture.md) for comprehensive system design including:
-- **System Architecture**: Data layer, model layer, inference layer, training pipeline, monitoring
-- **Data Flow**: Request/response flow with feature store and ensemble inference
-- **Training Pipeline**: Data preprocessing, feature engineering, model training, evaluation
-- **Model Comparison**: XGBoost vs LSTM performance metrics and trade-offs
-- **Deployment Architecture**: Kubernetes orchestration, load balancing, scaling
+See [**Detailed Architecture Diagrams**](assets/architecture.md) for complete reference. Below is the system architecture:
+
+```mermaid
+graph TB
+    subgraph DL["Data Layer"]
+        DB[(PostgreSQL<br/>Data Lake)]
+        FS[(Redis<br/>Feature Store)]
+        MLFLOW[(MLflow<br/>Artifacts)]
+    end
+    
+    subgraph ML["Model Layer"]
+        XGB["XGBoost<br/>60% weight<br/>F2: 0.9915"]
+        LSTM["LSTM + Attention<br/>40% weight<br/>F2: 0.8750"]
+    end
+    
+    subgraph IL["Inference Layer"]
+        API["FastAPI<br/>REST API"]
+        CACHE["Request Cache"]
+    end
+    
+    subgraph TP["Training Pipeline"]
+        PREPROCESS["Data Preprocessing"]
+        TRAIN["Model Training"]
+        EVAL["Evaluation"]
+    end
+    
+    subgraph MA["Monitoring"]
+        PROM["Prometheus"]
+        GRAFANA["Grafana"]
+    end
+    
+    DB -->|Load| PREPROCESS
+    PREPROCESS -->|Split| TRAIN
+    TRAIN -->|Save| MLFLOW
+    MLFLOW -->|Load| XGB
+    MLFLOW -->|Load| LSTM
+    XGB -->|Ensemble| API
+    LSTM -->|Ensemble| API
+    API -->|Cache| CACHE
+    API -->|Query| FS
+    TRAIN -->|Metrics| EVAL
+    EVAL -->|Log| PROM
+    PROM -->|Visualize| GRAFANA
+
+    style XGB fill:#A5D6A7
+    style LSTM fill:#90CAF9
+    style API fill:#FFD54F
+```
+
+**Model Performance Comparison:**
+| Metric | XGBoost | LSTM | Ensemble |
+|--------|---------|------|----------|
+| F2 Score | **0.9915** | 0.8750 | Best of both |
+| Precision | **0.9667** | 0.8260 | Balanced |
+| Recall | **0.9978** | 0.8882 | High Detection |
+| ROC-AUC | 0.9999 | 0.9898 | **0.9950** |
+
+### Training Pipeline
+
+```mermaid
+graph LR
+    A["Raw Data<br/>100 engines"] 
+    B["Feature<br/>Engineering<br/>128 features"]
+    C["Feature<br/>Selection<br/>Top 40"]
+    D["Sequence<br/>Creation<br/>30 cycles"]
+    E["Train/Val/Test<br/>Split 70/15/15"]
+    F["Model Training<br/>GPU-accelerated"]
+    G["Evaluation<br/>& Metrics"]
+    H["Model Registry<br/>MLflow"]
+    
+    A-->B-->C-->D-->E-->F-->G-->H
+    
+    style F fill:#F3E5F5
+    style H fill:#FFFDE7
+```
 
 ---
 
