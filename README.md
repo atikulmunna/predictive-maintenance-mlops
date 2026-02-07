@@ -90,6 +90,9 @@ graph TB
 - Production selection uses validation-gated fallback (from `data/models/ensemble_metrics.json`):
   - Use ensemble only if validation F2 gain is at least `min_f2_gain_for_ensemble` (currently `0.005`) over XGBoost reference.
   - Otherwise select XGBoost.
+- Serving policy precedence:
+  - Default source: `selected_model` and `selected_threshold` from `data/models/ensemble_metrics.json`.
+  - Emergency override: `MODEL_OVERRIDE=xgboost|ensemble` (and optional `MODEL_THRESHOLD_OVERRIDE=0.0..1.0`).
 - Current selected production model: **XGBoost** (`selected_model: "xgboost"`).
 
 ### Training Pipeline
@@ -229,6 +232,17 @@ uvicorn src.serving.api:app --workers 3 --host 0.0.0.0 --port 8000
 
 Access API documentation: http://localhost:8000/docs
 
+### 3b. Start With Docker Compose
+
+```powershell
+docker compose up --build
+```
+
+This starts:
+- `api` on `http://localhost:8000`
+- `redis` on `localhost:6379`
+- `postgres` on `localhost:5432`
+
 ### 4. Make Predictions
 
 ```powershell
@@ -251,6 +265,16 @@ print(response.json())
 
 `sequence` must contain 30 timesteps (or the configured sequence length), and each timestep must include all features listed in `data/models/feature_names.json`.
 
+### 4b. Explain Predictions
+
+```powershell
+curl -X POST "http://localhost:8000/explain?top_k=10" ^
+  -H "Content-Type: application/json" ^
+  -d "{ \"equipment_id\": \"engine_001\", \"sequence\": [...] }"
+```
+
+`/explain` returns top feature contribution scores from the XGBoost model (`pred_contribs`), which are SHAP-compatible local attributions.
+
 ### 5. Run Tests
 
 ```powershell
@@ -264,6 +288,8 @@ pytest -m unit
 pytest --cov=src --cov-report=html
 # Open htmlcov/index.html to view coverage
 ```
+
+Current baseline: `pytest -q` passes with total coverage above 85%.
 
 ---
 

@@ -16,6 +16,8 @@ from sklearn.preprocessing import StandardScaler
 from tensorflow.keras import callbacks, layers, models
 from tensorflow.keras.optimizers import Adam
 
+from src.training.mlflow_utils import get_mlflow_client, log_artifacts_if_exist
+
 
 def create_sequences(
     df: pd.DataFrame, feature_cols: list[str], sequence_length: int
@@ -72,6 +74,8 @@ def run_lstm_pipeline(
     top_k_features: int = 40,
     epochs: int = 100,
     batch_size: int = 32,
+    enable_mlflow: bool = True,
+    mlflow_experiment: str = "turbofan_lstm_temporal",
 ) -> dict[str, Any]:
     processed_path = data_dir / "processed" / "train_features_FD001.csv"
     models_dir = data_dir / "models"
@@ -179,6 +183,39 @@ def run_lstm_pipeline(
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2)
 
+    mlflow_run_id = None
+    if enable_mlflow:
+        mlflow = get_mlflow_client(data_dir=data_dir, experiment_name=mlflow_experiment)
+        if mlflow is not None:
+            with mlflow.start_run(run_name="lstm_temporal_script") as run:
+                mlflow.log_params(
+                    {
+                        "sequence_length": sequence_length,
+                        "top_k_features": top_k_features,
+                        "batch_size": batch_size,
+                        "epochs_trained": len(history.history["loss"]),
+                        "attention": True,
+                    }
+                )
+                mlflow.log_metrics(
+                    {
+                        "val_f2_score": f2_val,
+                        "val_precision": precision_val,
+                        "val_recall": recall_val,
+                        "val_roc_auc": roc_auc_val,
+                        "test_f2_score": f2_test,
+                        "test_precision": precision_test,
+                        "test_recall": recall_test,
+                        "test_roc_auc": roc_auc_test,
+                    }
+                )
+                try:
+                    mlflow.tensorflow.log_model(model, artifact_path="model")
+                except Exception:
+                    log_artifacts_if_exist(mlflow, [model_path])
+                log_artifacts_if_exist(mlflow, [features_path, scaler_path, metrics_path])
+                mlflow_run_id = run.info.run_id
+
     return {
         "model_path": str(model_path),
         "scaler_path": str(scaler_path),
@@ -190,6 +227,7 @@ def run_lstm_pipeline(
         "test_recall": recall_test,
         "test_roc_auc": roc_auc_test,
         "epochs_trained": len(history.history["loss"]),
+        "mlflow_run_id": mlflow_run_id,
     }
 
 
@@ -200,6 +238,7 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=32, help="Batch size")
     parser.add_argument("--sequence-length", type=int, default=30, help="Sequence length")
     parser.add_argument("--top-k-features", type=int, default=40, help="Number of top correlated features")
+    parser.add_argument("--no-mlflow", action="store_true", help="Disable MLflow logging")
     args = parser.parse_args()
 
     result = run_lstm_pipeline(
@@ -208,6 +247,7 @@ def main() -> None:
         top_k_features=args.top_k_features,
         epochs=args.epochs,
         batch_size=args.batch_size,
+        enable_mlflow=not args.no_mlflow,
     )
     print(f"Saved model: {result['model_path']}")
     print(f"Saved scaler: {result['scaler_path']}")
@@ -221,8 +261,9 @@ def main() -> None:
         f"ROC-AUC={result['test_roc_auc']:.4f}"
     )
     print(f"Epochs trained: {result['epochs_trained']}")
+    if result.get("mlflow_run_id"):
+        print(f"MLflow run: {result['mlflow_run_id']}")
 
 
 if __name__ == "__main__":
     main()
-

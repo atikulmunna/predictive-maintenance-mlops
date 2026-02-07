@@ -16,8 +16,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, fbeta_score, precision_score, recall_score, roc_auc_score
 from tensorflow import keras
 
-
-EXCLUDE_COLS = ["unit_id", "cycle", "RUL", "failure_soon"]
+from src.training.mlflow_utils import get_mlflow_client
 
 
 @dataclass
@@ -140,7 +139,13 @@ def prepare_inputs(data_dir: Path) -> tuple[EnsembleInputs, dict[str, Any]]:
     )
 
 
-def run_ensemble_pipeline(data_dir: Path, min_f2_gain: float = 0.005, allow_calibration: bool = True) -> dict[str, Any]:
+def run_ensemble_pipeline(
+    data_dir: Path,
+    min_f2_gain: float = 0.005,
+    allow_calibration: bool = True,
+    enable_mlflow: bool = True,
+    mlflow_experiment: str = "turbofan_ensemble_selection",
+) -> dict[str, Any]:
     inputs, ctx = prepare_inputs(data_dir)
     models_dir = ctx["models_dir"]
 
@@ -274,6 +279,38 @@ def run_ensemble_pipeline(data_dir: Path, min_f2_gain: float = 0.005, allow_cali
         },
         "confusion_matrix": {"tn": int(tn), "fp": int(fp), "fn": int(fn), "tp": int(tp)},
     }
+
+    if enable_mlflow:
+        mlflow = get_mlflow_client(data_dir=data_dir, experiment_name=mlflow_experiment)
+        if mlflow is not None:
+            with mlflow.start_run(run_name="ensemble_selection_script") as run:
+                mlflow.log_params(
+                    {
+                        "min_f2_gain_for_ensemble": min_f2_gain,
+                        "allow_calibration": allow_calibration,
+                        "xgb_probability_variant": xgb_variant,
+                        "lstm_probability_variant": lstm_variant,
+                        "best_weight_xgb": best_weight,
+                        "best_weight_lstm": 1.0 - best_weight,
+                        "best_threshold_val": best_threshold,
+                        "selected_model": selected_model,
+                    }
+                )
+                mlflow.log_metrics(
+                    {
+                        "val_f2_ensemble_best": best_val_f2,
+                        "xgb_val_f2_reference": xgb_val_ref,
+                        "test_f2_selected": selected_f2,
+                        "test_precision_selected": selected_precision,
+                        "test_recall_selected": selected_recall,
+                        "test_roc_auc_selected": selected_auc,
+                        "ensemble_test_f2": ensemble_f2,
+                        "ensemble_test_precision": ensemble_precision,
+                        "ensemble_test_recall": ensemble_recall,
+                        "ensemble_test_roc_auc": ensemble_auc,
+                    }
+                )
+                payload["mlflow_run_id"] = run.info.run_id
     return payload
 
 
@@ -291,12 +328,14 @@ def main() -> None:
         action="store_true",
         help="Disable Platt calibration when evaluating blend inputs",
     )
+    parser.add_argument("--no-mlflow", action="store_true", help="Disable MLflow logging")
     args = parser.parse_args()
 
     payload = run_ensemble_pipeline(
         data_dir=args.data_dir,
         min_f2_gain=args.min_f2_gain,
         allow_calibration=not args.no_calibration,
+        enable_mlflow=not args.no_mlflow,
     )
 
     out_path = args.data_dir / "models" / "ensemble_metrics.json"
@@ -305,6 +344,8 @@ def main() -> None:
     print(f"Selected model: {payload['selected_model']}")
     print(f"Selected test F2: {payload['test_f2']:.4f}")
     print(f"Best ensemble val F2: {payload['val_f2_ensemble_best']:.4f}")
+    if payload.get("mlflow_run_id"):
+        print(f"MLflow run: {payload['mlflow_run_id']}")
 
 
 if __name__ == "__main__":

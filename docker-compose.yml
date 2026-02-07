@@ -1,0 +1,38 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: predictive-maintenance-api
+    ports:
+      - "8000:8000"
+    environment:
+      - MODEL_OVERRIDE=
+      - MODEL_THRESHOLD_OVERRIDE=
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: predictive-maintenance-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: predictive-maintenance-postgres
+    environment:
+      POSTGRES_USER: predmaint
+      POSTGRES_PASSWORD: predmaint
+      POSTGRES_DB: predmaint
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:

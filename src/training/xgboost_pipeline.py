@@ -8,12 +8,13 @@ from pathlib import Path
 from typing import Any
 
 import joblib
-import numpy as np
 import pandas as pd
 import xgboost as xgb
 from imblearn.over_sampling import SMOTE
 from sklearn.metrics import fbeta_score, precision_score, recall_score, roc_auc_score
 from sklearn.preprocessing import StandardScaler
+
+from src.training.mlflow_utils import get_mlflow_client, log_artifacts_if_exist
 
 
 DEFAULT_PARAMS = {
@@ -56,7 +57,11 @@ def split_by_engine(df: pd.DataFrame) -> tuple[pd.Series, pd.Series, pd.Series]:
     )
 
 
-def run_xgboost_pipeline(data_dir: Path) -> dict[str, Any]:
+def run_xgboost_pipeline(
+    data_dir: Path,
+    enable_mlflow: bool = True,
+    mlflow_experiment: str = "turbofan_xgboost_baseline",
+) -> dict[str, Any]:
     processed_path = data_dir / "processed" / "train_features_FD001.csv"
     models_dir = data_dir / "models"
     models_dir.mkdir(parents=True, exist_ok=True)
@@ -143,6 +148,36 @@ def run_xgboost_pipeline(data_dir: Path) -> dict[str, Any]:
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2)
 
+    mlflow_run_id = None
+    if enable_mlflow:
+        mlflow = get_mlflow_client(data_dir=data_dir, experiment_name=mlflow_experiment)
+        if mlflow is not None:
+            with mlflow.start_run(run_name="xgboost_baseline_script") as run:
+                mlflow.log_params(params)
+                mlflow.log_metrics(
+                    {
+                        "val_f2_score": f2_val,
+                        "val_precision": precision_val,
+                        "val_recall": recall_val,
+                        "val_roc_auc": roc_auc_val,
+                        "test_f2_score": f2_test,
+                        "test_precision": precision_test,
+                        "test_recall": recall_test,
+                        "test_roc_auc": roc_auc_test,
+                    }
+                )
+                mlflow.log_params(
+                    {
+                        "train_samples": int(len(x_train_balanced)),
+                        "val_samples": int(len(x_val)),
+                        "test_samples": int(len(x_test)),
+                        "num_features": int(len(feature_cols)),
+                    }
+                )
+                mlflow.xgboost.log_model(model, artifact_path="model")
+                log_artifacts_if_exist(mlflow, [feature_path, metrics_path])
+                mlflow_run_id = run.info.run_id
+
     return {
         "model_path": str(model_path),
         "scaler_path": str(scaler_path),
@@ -153,15 +188,17 @@ def run_xgboost_pipeline(data_dir: Path) -> dict[str, Any]:
         "test_precision": precision_test,
         "test_recall": recall_test,
         "test_roc_auc": roc_auc_test,
+        "mlflow_run_id": mlflow_run_id,
     }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train and persist XGBoost baseline artifacts.")
     parser.add_argument("--data-dir", type=Path, default=Path("data"), help="Path to data directory")
+    parser.add_argument("--no-mlflow", action="store_true", help="Disable MLflow logging")
     args = parser.parse_args()
 
-    result = run_xgboost_pipeline(args.data_dir)
+    result = run_xgboost_pipeline(args.data_dir, enable_mlflow=not args.no_mlflow)
     print(f"Saved model: {result['model_path']}")
     print(f"Saved scaler: {result['scaler_path']}")
     print(f"Saved feature names: {result['feature_path']}")
@@ -173,8 +210,9 @@ def main() -> None:
         f"Recall={result['test_recall']:.4f}, "
         f"ROC-AUC={result['test_roc_auc']:.4f}"
     )
+    if result.get("mlflow_run_id"):
+        print(f"MLflow run: {result['mlflow_run_id']}")
 
 
 if __name__ == "__main__":
     main()
-

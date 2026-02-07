@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +17,7 @@ def run_selected_pipeline(args: argparse.Namespace) -> dict[str, Any]:
     data_dir = Path(args.data_dir)
 
     if model == "xgboost":
-        return {"xgboost": run_xgboost_pipeline(data_dir=data_dir)}
+        return {"xgboost": run_xgboost_pipeline(data_dir=data_dir, enable_mlflow=not args.no_mlflow)}
 
     if model == "lstm":
         return {
@@ -26,32 +27,45 @@ def run_selected_pipeline(args: argparse.Namespace) -> dict[str, Any]:
                 top_k_features=args.top_k_features,
                 epochs=args.epochs,
                 batch_size=args.batch_size,
+                enable_mlflow=not args.no_mlflow,
             )
         }
 
     if model == "ensemble":
+        payload = run_ensemble_pipeline(
+            data_dir=data_dir,
+            min_f2_gain=args.min_f2_gain,
+            allow_calibration=not args.no_calibration,
+            enable_mlflow=not args.no_mlflow,
+        )
+        (data_dir / "models").mkdir(parents=True, exist_ok=True)
+        (data_dir / "models" / "ensemble_metrics.json").write_text(
+            json.dumps(payload, indent=2), encoding="utf-8"
+        )
         return {
-            "ensemble": run_ensemble_pipeline(
-                data_dir=data_dir,
-                min_f2_gain=args.min_f2_gain,
-                allow_calibration=not args.no_calibration,
-            )
+            "ensemble": payload
         }
 
     if model == "all":
         results: dict[str, Any] = {}
-        results["xgboost"] = run_xgboost_pipeline(data_dir=data_dir)
+        results["xgboost"] = run_xgboost_pipeline(data_dir=data_dir, enable_mlflow=not args.no_mlflow)
         results["lstm"] = run_lstm_pipeline(
             data_dir=data_dir,
             sequence_length=args.sequence_length,
             top_k_features=args.top_k_features,
             epochs=args.epochs,
             batch_size=args.batch_size,
+            enable_mlflow=not args.no_mlflow,
         )
         results["ensemble"] = run_ensemble_pipeline(
             data_dir=data_dir,
             min_f2_gain=args.min_f2_gain,
             allow_calibration=not args.no_calibration,
+            enable_mlflow=not args.no_mlflow,
+        )
+        (data_dir / "models").mkdir(parents=True, exist_ok=True)
+        (data_dir / "models" / "ensemble_metrics.json").write_text(
+            json.dumps(results["ensemble"], indent=2), encoding="utf-8"
         )
         return results
 
@@ -77,6 +91,7 @@ def build_parser() -> argparse.ArgumentParser:
     # Ensemble options
     parser.add_argument("--min-f2-gain", type=float, default=0.005, help="Min val F2 gain to select ensemble")
     parser.add_argument("--no-calibration", action="store_true", help="Disable Platt calibration")
+    parser.add_argument("--no-mlflow", action="store_true", help="Disable MLflow logging")
     return parser
 
 
@@ -95,4 +110,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
