@@ -1,0 +1,31 @@
+# ML Training dependencies
+# Install with: pip install -r requirements/base.txt -r requirements/training.txt
+
+# Deep Learning (PyTorch with CUDA 11.8)
+# Install separately: conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+torch>=2.2.0
+torchvision>=0.17.0
+torchaudio>=2.2.0
+
+# Gradient Boosting (GPU-accelerated)
+xgboost==2.0.3
+
+# Hyperparameter Optimization
+optuna==3.5.0
+
+# Experiment Tracking
+mlflow==2.10.2
+
+# Model Explainability
+shap==0.44.1
+
+# Imbalanced Learning
+imbalanced-learn==0.12.0
+
+# Feature Engineering
+tsfresh==0.20.2  # time-series features
+
+# Visualization
+matplotlib==3.8.2
+seaborn==0.13.2
+plotly==5.18.0

@@ -1,0 +1,31 @@
+# API Serving dependencies
+# Install with: pip install -r requirements/base.txt -r requirements/serving.txt
+
+# API Framework
+fastapi==0.110.0
+uvicorn[standard]==0.27.1
+
+# Database
+psycopg2-binary==2.9.9  # PostgreSQL
+sqlalchemy==2.0.27
+alembic==1.13.1  # Database migrations
+
+# Cache & Feature Store
+redis==5.0.1
+hiredis==2.3.2  # Redis performance boost
+
+# Authentication & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.9
+
+# Monitoring & Observability
+prometheus-client==0.20.0
+opentelemetry-api==1.22.0
+opentelemetry-sdk==1.22.0
+opentelemetry-instrumentation-fastapi==0.43b0
+
+# Async support
+aioredis==2.0.1
+asyncpg==0.29.0
+httpx==0.26.0

@@ -1,0 +1,22 @@
+# Core dependencies for predictive maintenance platform
+# Install with: pip install -r requirements/base.txt
+
+# Data processing
+pandas==2.2.0
+numpy==1.26.4
+scipy==1.12.0
+
+# Machine Learning (core)
+scikit-learn==1.4.0
+
+# Configuration & Utilities
+pyyaml==6.0.1
+python-dotenv==1.0.1
+pydantic==2.6.0
+pydantic-settings==2.1.0
+
+# Data validation
+great-expectations==0.18.8
+
+# Logging
+structlog==24.1.0
