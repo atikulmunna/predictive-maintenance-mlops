@@ -68,6 +68,34 @@ def test_get_mlflow_client_success_and_log_artifacts(tmp_path, monkeypatch) -> N
     assert str(missing) not in DummyMlflow.artifacts
 
 
+def test_register_model_if_possible_paths() -> None:
+    skipped = mlflow_utils.register_model_if_possible(None, "abc", "model", "name")
+    assert skipped["status"] == "skipped"
+
+    skipped2 = mlflow_utils.register_model_if_possible(object(), None, "model", "name")
+    assert skipped2["status"] == "skipped"
+
+    class DummyMlflow:
+        @staticmethod
+        def register_model(model_uri: str, name: str):  # type: ignore[no-untyped-def]
+            class V:
+                version = 7
+
+            assert model_uri.startswith("runs:/")
+            assert name == "demo-model"
+            return V()
+
+    ok = mlflow_utils.register_model_if_possible(DummyMlflow, "run123", "model", "demo-model")
+    assert ok["status"] == "registered"
+    assert ok["version"] == "7"
+
+
+def test_write_registry_state(tmp_path: Path) -> None:
+    out = mlflow_utils.write_registry_state(tmp_path, {"selected_model": "xgboost"})
+    assert out.exists()
+    assert "selected_model" in out.read_text(encoding="utf-8")
+
+
 def test_trainer_run_selected_pipeline_all_branches(monkeypatch) -> None:
     calls: list[str] = []
 
@@ -110,3 +138,19 @@ def test_trainer_single_model_paths(monkeypatch) -> None:
 
     args_ens = build_parser().parse_args(["--model", "ensemble", "--data-dir", "data", "--no-mlflow"])
     assert "ensemble" in trainer.run_selected_pipeline(args_ens)
+
+
+def test_trainer_all_writes_registry_state(monkeypatch, tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    (data_dir / "models").mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(trainer, "run_xgboost_pipeline", lambda **kwargs: {"test_f2": 0.9, "mlflow_run_id": "r1", "mlflow_registry": {"status": "skipped"}})  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(trainer, "run_lstm_pipeline", lambda **kwargs: {"test_f2": 0.8, "mlflow_run_id": "r2", "mlflow_registry": {"status": "skipped"}})  # type: ignore[no-untyped-def]
+    monkeypatch.setattr(  # type: ignore[no-untyped-def]
+        trainer,
+        "run_ensemble_pipeline",
+        lambda **kwargs: {"test_f2": 0.85, "selected_model": "xgboost", "selected_threshold": 0.5},
+    )
+    args = build_parser().parse_args(["--model", "all", "--data-dir", str(data_dir), "--no-mlflow"])
+    out = trainer.run_selected_pipeline(args)
+    assert out["ensemble"]["selected_model"] == "xgboost"
+    assert (data_dir / "models" / "model_registry_state.json").exists()

@@ -16,7 +16,7 @@ from sklearn.preprocessing import StandardScaler
 from tensorflow.keras import callbacks, layers, models
 from tensorflow.keras.optimizers import Adam
 
-from src.training.mlflow_utils import get_mlflow_client, log_artifacts_if_exist
+from src.training.mlflow_utils import get_mlflow_client, log_artifacts_if_exist, register_model_if_possible
 
 
 def create_sequences(
@@ -76,6 +76,8 @@ def run_lstm_pipeline(
     batch_size: int = 32,
     enable_mlflow: bool = True,
     mlflow_experiment: str = "turbofan_lstm_temporal",
+    register_model: bool = False,
+    registered_model_name: str = "predictive-maintenance-lstm",
 ) -> dict[str, Any]:
     processed_path = data_dir / "processed" / "train_features_FD001.csv"
     models_dir = data_dir / "models"
@@ -184,6 +186,7 @@ def run_lstm_pipeline(
         json.dump(metrics, f, indent=2)
 
     mlflow_run_id = None
+    mlflow_registry = {"status": "skipped", "reason": "mlflow_disabled"}
     if enable_mlflow:
         mlflow = get_mlflow_client(data_dir=data_dir, experiment_name=mlflow_experiment)
         if mlflow is not None:
@@ -215,6 +218,17 @@ def run_lstm_pipeline(
                     log_artifacts_if_exist(mlflow, [model_path])
                 log_artifacts_if_exist(mlflow, [features_path, scaler_path, metrics_path])
                 mlflow_run_id = run.info.run_id
+            if register_model:
+                mlflow_registry = register_model_if_possible(
+                    mlflow_client=mlflow,
+                    run_id=mlflow_run_id,
+                    artifact_path="model",
+                    registered_model_name=registered_model_name,
+                )
+        else:
+            mlflow_registry = {"status": "skipped", "reason": "mlflow_unavailable"}
+    elif register_model:
+        mlflow_registry = {"status": "skipped", "reason": "registration_requires_mlflow"}
 
     return {
         "model_path": str(model_path),
@@ -228,6 +242,7 @@ def run_lstm_pipeline(
         "test_roc_auc": roc_auc_test,
         "epochs_trained": len(history.history["loss"]),
         "mlflow_run_id": mlflow_run_id,
+        "mlflow_registry": mlflow_registry,
     }
 
 
@@ -239,6 +254,12 @@ def main() -> None:
     parser.add_argument("--sequence-length", type=int, default=30, help="Sequence length")
     parser.add_argument("--top-k-features", type=int, default=40, help="Number of top correlated features")
     parser.add_argument("--no-mlflow", action="store_true", help="Disable MLflow logging")
+    parser.add_argument("--register-model", action="store_true", help="Register model in MLflow registry")
+    parser.add_argument(
+        "--registered-model-name",
+        default="predictive-maintenance-lstm",
+        help="Registered model name for MLflow registry",
+    )
     args = parser.parse_args()
 
     result = run_lstm_pipeline(
@@ -248,6 +269,8 @@ def main() -> None:
         epochs=args.epochs,
         batch_size=args.batch_size,
         enable_mlflow=not args.no_mlflow,
+        register_model=args.register_model,
+        registered_model_name=args.registered_model_name,
     )
     print(f"Saved model: {result['model_path']}")
     print(f"Saved scaler: {result['scaler_path']}")
@@ -263,6 +286,8 @@ def main() -> None:
     print(f"Epochs trained: {result['epochs_trained']}")
     if result.get("mlflow_run_id"):
         print(f"MLflow run: {result['mlflow_run_id']}")
+    if result.get("mlflow_registry"):
+        print(f"MLflow registry: {result['mlflow_registry']}")
 
 
 if __name__ == "__main__":

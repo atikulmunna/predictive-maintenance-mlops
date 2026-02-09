@@ -218,6 +218,9 @@ python -m src.training.trainer --model ensemble --data-dir data --min-f2-gain 0.
 
 # Run full pipeline sequentially: XGBoost -> LSTM -> Ensemble
 python -m src.training.trainer --model all --data-dir data
+
+# Phase 3 orchestration entrypoint (local runner; Prefect mode when installed)
+python -m src.pipelines.prefect_flow --engine local --data-dir data --epochs 100 --batch-size 32
 ```
 
 ### 3. Start API Server

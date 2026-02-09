@@ -14,7 +14,7 @@ from imblearn.over_sampling import SMOTE
 from sklearn.metrics import fbeta_score, precision_score, recall_score, roc_auc_score
 from sklearn.preprocessing import StandardScaler
 
-from src.training.mlflow_utils import get_mlflow_client, log_artifacts_if_exist
+from src.training.mlflow_utils import get_mlflow_client, log_artifacts_if_exist, register_model_if_possible
 
 
 DEFAULT_PARAMS = {
@@ -61,6 +61,8 @@ def run_xgboost_pipeline(
     data_dir: Path,
     enable_mlflow: bool = True,
     mlflow_experiment: str = "turbofan_xgboost_baseline",
+    register_model: bool = False,
+    registered_model_name: str = "predictive-maintenance-xgboost",
 ) -> dict[str, Any]:
     processed_path = data_dir / "processed" / "train_features_FD001.csv"
     models_dir = data_dir / "models"
@@ -149,6 +151,7 @@ def run_xgboost_pipeline(
         json.dump(metrics, f, indent=2)
 
     mlflow_run_id = None
+    mlflow_registry = {"status": "skipped", "reason": "mlflow_disabled"}
     if enable_mlflow:
         mlflow = get_mlflow_client(data_dir=data_dir, experiment_name=mlflow_experiment)
         if mlflow is not None:
@@ -177,6 +180,17 @@ def run_xgboost_pipeline(
                 mlflow.xgboost.log_model(model, artifact_path="model")
                 log_artifacts_if_exist(mlflow, [feature_path, metrics_path])
                 mlflow_run_id = run.info.run_id
+            if register_model:
+                mlflow_registry = register_model_if_possible(
+                    mlflow_client=mlflow,
+                    run_id=mlflow_run_id,
+                    artifact_path="model",
+                    registered_model_name=registered_model_name,
+                )
+        else:
+            mlflow_registry = {"status": "skipped", "reason": "mlflow_unavailable"}
+    elif register_model:
+        mlflow_registry = {"status": "skipped", "reason": "registration_requires_mlflow"}
 
     return {
         "model_path": str(model_path),
@@ -189,6 +203,7 @@ def run_xgboost_pipeline(
         "test_recall": recall_test,
         "test_roc_auc": roc_auc_test,
         "mlflow_run_id": mlflow_run_id,
+        "mlflow_registry": mlflow_registry,
     }
 
 
@@ -196,9 +211,20 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Train and persist XGBoost baseline artifacts.")
     parser.add_argument("--data-dir", type=Path, default=Path("data"), help="Path to data directory")
     parser.add_argument("--no-mlflow", action="store_true", help="Disable MLflow logging")
+    parser.add_argument("--register-model", action="store_true", help="Register model in MLflow registry")
+    parser.add_argument(
+        "--registered-model-name",
+        default="predictive-maintenance-xgboost",
+        help="Registered model name for MLflow registry",
+    )
     args = parser.parse_args()
 
-    result = run_xgboost_pipeline(args.data_dir, enable_mlflow=not args.no_mlflow)
+    result = run_xgboost_pipeline(
+        args.data_dir,
+        enable_mlflow=not args.no_mlflow,
+        register_model=args.register_model,
+        registered_model_name=args.registered_model_name,
+    )
     print(f"Saved model: {result['model_path']}")
     print(f"Saved scaler: {result['scaler_path']}")
     print(f"Saved feature names: {result['feature_path']}")
@@ -212,6 +238,8 @@ def main() -> None:
     )
     if result.get("mlflow_run_id"):
         print(f"MLflow run: {result['mlflow_run_id']}")
+    if result.get("mlflow_registry"):
+        print(f"MLflow registry: {result['mlflow_registry']}")
 
 
 if __name__ == "__main__":

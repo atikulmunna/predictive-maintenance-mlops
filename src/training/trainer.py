@@ -9,6 +9,7 @@ from typing import Any
 
 from src.training.ensemble_pipeline import run_ensemble_pipeline
 from src.training.lstm_pipeline import run_lstm_pipeline
+from src.training.mlflow_utils import write_registry_state
 from src.training.xgboost_pipeline import run_xgboost_pipeline
 
 
@@ -17,7 +18,14 @@ def run_selected_pipeline(args: argparse.Namespace) -> dict[str, Any]:
     data_dir = Path(args.data_dir)
 
     if model == "xgboost":
-        return {"xgboost": run_xgboost_pipeline(data_dir=data_dir, enable_mlflow=not args.no_mlflow)}
+        return {
+            "xgboost": run_xgboost_pipeline(
+                data_dir=data_dir,
+                enable_mlflow=not args.no_mlflow,
+                register_model=args.register_models,
+                registered_model_name=args.xgb_registered_model_name,
+            )
+        }
 
     if model == "lstm":
         return {
@@ -28,6 +36,8 @@ def run_selected_pipeline(args: argparse.Namespace) -> dict[str, Any]:
                 epochs=args.epochs,
                 batch_size=args.batch_size,
                 enable_mlflow=not args.no_mlflow,
+                register_model=args.register_models,
+                registered_model_name=args.lstm_registered_model_name,
             )
         }
 
@@ -42,13 +52,16 @@ def run_selected_pipeline(args: argparse.Namespace) -> dict[str, Any]:
         (data_dir / "models" / "ensemble_metrics.json").write_text(
             json.dumps(payload, indent=2), encoding="utf-8"
         )
-        return {
-            "ensemble": payload
-        }
+        return {"ensemble": payload}
 
     if model == "all":
         results: dict[str, Any] = {}
-        results["xgboost"] = run_xgboost_pipeline(data_dir=data_dir, enable_mlflow=not args.no_mlflow)
+        results["xgboost"] = run_xgboost_pipeline(
+            data_dir=data_dir,
+            enable_mlflow=not args.no_mlflow,
+            register_model=args.register_models,
+            registered_model_name=args.xgb_registered_model_name,
+        )
         results["lstm"] = run_lstm_pipeline(
             data_dir=data_dir,
             sequence_length=args.sequence_length,
@@ -56,6 +69,8 @@ def run_selected_pipeline(args: argparse.Namespace) -> dict[str, Any]:
             epochs=args.epochs,
             batch_size=args.batch_size,
             enable_mlflow=not args.no_mlflow,
+            register_model=args.register_models,
+            registered_model_name=args.lstm_registered_model_name,
         )
         results["ensemble"] = run_ensemble_pipeline(
             data_dir=data_dir,
@@ -67,6 +82,7 @@ def run_selected_pipeline(args: argparse.Namespace) -> dict[str, Any]:
         (data_dir / "models" / "ensemble_metrics.json").write_text(
             json.dumps(results["ensemble"], indent=2), encoding="utf-8"
         )
+        _write_local_registry_state(data_dir=data_dir, results=results)
         return results
 
     raise ValueError(f"Unsupported model: {args.model}")
@@ -92,7 +108,45 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-f2-gain", type=float, default=0.005, help="Min val F2 gain to select ensemble")
     parser.add_argument("--no-calibration", action="store_true", help="Disable Platt calibration")
     parser.add_argument("--no-mlflow", action="store_true", help="Disable MLflow logging")
+    parser.add_argument("--register-models", action="store_true", help="Register XGBoost/LSTM models in MLflow")
+    parser.add_argument(
+        "--xgb-registered-model-name",
+        default="predictive-maintenance-xgboost",
+        help="MLflow registered model name for XGBoost",
+    )
+    parser.add_argument(
+        "--lstm-registered-model-name",
+        default="predictive-maintenance-lstm",
+        help="MLflow registered model name for LSTM",
+    )
     return parser
+
+
+def _write_local_registry_state(data_dir: Path, results: dict[str, Any]) -> None:
+    xgb = results.get("xgboost", {})
+    lstm = results.get("lstm", {})
+    ens = results.get("ensemble", {})
+    payload = {
+        "selected_model": ens.get("selected_model"),
+        "selection_threshold": ens.get("selected_threshold"),
+        "selected_test_f2": ens.get("test_f2"),
+        "selection_source": "ensemble_metrics",
+        "xgboost": {
+            "test_f2": xgb.get("test_f2"),
+            "mlflow_run_id": xgb.get("mlflow_run_id"),
+            "mlflow_registry": xgb.get("mlflow_registry"),
+        },
+        "lstm": {
+            "test_f2": lstm.get("test_f2"),
+            "mlflow_run_id": lstm.get("mlflow_run_id"),
+            "mlflow_registry": lstm.get("mlflow_registry"),
+        },
+        "ensemble": {
+            "test_f2": ens.get("test_f2"),
+            "mlflow_run_id": ens.get("mlflow_run_id"),
+        },
+    }
+    write_registry_state(data_dir=data_dir, payload=payload)
 
 
 def main() -> None:
