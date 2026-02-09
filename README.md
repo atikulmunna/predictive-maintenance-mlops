@@ -294,6 +294,16 @@ pytest --cov=src --cov-report=html
 
 Current baseline: `pytest -q` passes with total coverage above 85%.
 
+### 6. Run Drift Detection
+
+```powershell
+python -m src.monitoring.drift_detection ^
+  --reference data/processed/train_features_FD001.csv ^
+  --current data/processed/train_features_FD001.csv
+```
+
+Writes `data/models/drift_report.json` with feature and prediction drift summary.
+
 ---
 
 ## 📊 Dataset
@@ -376,7 +386,8 @@ predictive-maintenance-mlops/
 - **API**: FastAPI, Uvicorn
 - **Model Artifacts**: JSON, H5, Pickle (`data/models/*`)
 - **Experiment Tracking**: MLflow (notebook workflow + local `mlruns`)
-- **Orchestration & Drift (Planned)**: Prefect, Evidently AI
+- **Orchestration**: Prefect-compatible local flow runner (`src/pipelines/prefect_flow.py`)
+- **Drift Detection**: Statistical drift checks (KS + PSI + prediction mean shift) via `src/monitoring/drift_detection.py`
 - **Monitoring (Planned)**: Prometheus, Grafana
 - **Containerization (Planned)**: Docker, Docker Compose
 - **Testing**: pytest
