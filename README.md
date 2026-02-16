@@ -304,6 +304,18 @@ python -m src.monitoring.drift_detection ^
 
 Writes `data/models/drift_report.json` with feature and prediction drift summary.
 
+### 7. Run Conditional Retraining
+
+```powershell
+python -m src.pipelines.retraining_pipeline ^
+  --data-dir data ^
+  --engine local ^
+  --no-mlflow
+```
+
+Reads `data/models/drift_report.json`, applies retraining policy, and writes
+`data/models/retraining_decision.json`.
+
 ---
 
 ## 📊 Dataset
