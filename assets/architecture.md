@@ -1,189 +1,123 @@
-# MLOps Architecture Diagram
+# Current MLOps Architecture
 
-## System Architecture
+## System Architecture (Implemented)
 
 ```mermaid
 graph TB
-    subgraph DL["Data Layer"]
-        DB[(PostgreSQL<br/>Data Lake)]
-        FS[(Redis<br/>Feature Store)]
-        MLFLOW[(MLflow<br/>Artifacts)]
+    subgraph Data["Data & Artifacts"]
+        RAW["Raw Dataset<br/>NASA Turbofan"]
+        PROC["Processed Features<br/>data/processed/*.csv"]
+        MODELS["Model Artifacts<br/>data/models/*.json/*.pkl/*.h5"]
+        MLRUNS["MLflow Local Runs<br/>mlruns/ (optional)"]
     end
-    
-    subgraph ML["Model Layer"]
-        XGB["XGBoost<br/>60% weight<br/>F2: 0.9915"]
-        LSTM["LSTM + Attention<br/>40% weight<br/>F2: 0.8750"]
-    end
-    
-    subgraph IL["Inference Layer"]
-        API["FastAPI<br/>REST API"]
-        CACHE["Request Cache<br/>5-minute TTL"]
-    end
-    
-    subgraph TP["Training Pipeline"]
-        PREPROCESS["Data Preprocessing<br/>Feature Engineering<br/>Sequence Creation"]
-        TRAIN["Model Training<br/>Prefect Orchestration<br/>MLflow Tracking"]
-        EVAL["Evaluation<br/>Metrics Calculation<br/>Drift Detection"]
-    end
-    
-    subgraph MA["Monitoring & Alerting"]
-        PROM["Prometheus<br/>Metrics Collection"]
-        GRAFANA["Grafana<br/>Dashboards"]
-        SLACK["Slack<br/>Notifications"]
-    end
-    
-    DB -->|Load Data| PREPROCESS
-    PREPROCESS -->|Train/Val/Test| TRAIN
-    TRAIN -->|Save Models| MLFLOW
-    MLFLOW -->|Load Models| XGB
-    MLFLOW -->|Load Models| LSTM
-    XGB -->|Ensemble| API
-    LSTM -->|Ensemble| API
-    API -->|Cache Results| CACHE
-    API -->|Query| FS
-    TRAIN -->|Metrics| EVAL
-    EVAL -->|Log| PROM
-    PROM -->|Visualize| GRAFANA
-    EVAL -->|Alert| SLACK
-    GRAFANA -->|Trigger| SLACK
 
-    style XGB fill:#A5D6A7
-    style LSTM fill:#90CAF9
+    subgraph Train["Training & Orchestration"]
+        TRAINER["trainer.py<br/>xgboost | lstm | ensemble | all"]
+        FLOW["prefect_flow.py<br/>local/prefect engines"]
+        DRIFT["drift_detection.py"]
+        RETRAIN["retraining_pipeline.py"]
+    end
+
+    subgraph Serve["Serving & UI"]
+        API["FastAPI<br/>/health /predict /explain"]
+        UI["Streamlit Dashboard<br/>streamlit_app.py"]
+    end
+
+    RAW --> PROC
+    PROC --> TRAINER
+    TRAINER --> MODELS
+    FLOW --> TRAINER
+    MODELS --> API
+    API --> UI
+    PROC --> DRIFT
+    DRIFT --> MODELS
+    DRIFT --> RETRAIN
+    RETRAIN --> FLOW
+    TRAINER --> MLRUNS
+
     style API fill:#FFD54F
+    style UI fill:#90CAF9
+    style FLOW fill:#A5D6A7
 ```
 
-## Training Pipeline
+## Training Pipeline (Implemented)
 
 ```mermaid
 graph LR
-    A["Raw Data<br/>NASA Turbofan<br/>100 engines"] 
-    B["Feature Engineering<br/>128 features"]
-    C["Feature Selection<br/>Top 40"]
-    D["Sequence Creation<br/>30-cycle windows"]
-    E["Time-based Split<br/>70/15/15"]
-    F["Model Training<br/>XGBoost + LSTM"]
-    G["Evaluation<br/>Metrics Analysis"]
-    H["Model Registry<br/>MLflow"]
-    
-    A-->B-->C-->D-->E-->F-->G-->H
-    
-    style A fill:#FFF3E0
-    style B fill:#E8F5E9
-    style C fill:#E8F5E9
-    style D fill:#E3F2FD
-    style E fill:#E3F2FD
-    style F fill:#F3E5F5
-    style G fill:#FCE4EC
-    style H fill:#FFFDE7
+    A["Raw Data<br/>NASA Turbofan"] 
+    B["Feature Engineering<br/>notebooks/02 + data/processed"]
+    C["XGBoost Training<br/>xgboost_pipeline.py"]
+    D["LSTM Training<br/>lstm_pipeline.py"]
+    E["Ensemble Selection<br/>ensemble_pipeline.py"]
+    F["Selection Policy Artifact<br/>ensemble_metrics.json"]
+    G["Orchestration Summary<br/>pipeline_run_summary.json"]
+
+    A --> B --> C
+    B --> D
+    C --> E
+    D --> E
+    E --> F
+    F --> G
 ```
 
-## Model Comparison
+## Model Comparison and Selection Policy (Current)
 
 ```mermaid
 graph TB
-    subgraph X["XGBoost Baseline"]
-        XGB_ARCH["Tree Ensemble<br/>185 estimators<br/>Max depth: 8"]
-        XGB_PERF["F2: 0.9915<br/>Precision: 0.9667<br/>Recall: 0.9978<br/>ROC-AUC: 0.9999"]
-    end
-    
-    subgraph L["LSTM + Attention"]
-        LSTM_ARCH["Sequential Model<br/>2 LSTM layers<br/>64-32 units<br/>Attention mechanism"]
-        LSTM_PERF["F2: 0.8750<br/>Precision: 0.8260<br/>Recall: 0.8882<br/>ROC-AUC: 0.9898"]
-    end
-    
-    subgraph E["Ensemble 60-40"]
-        ENS["Final Prediction<br/>P = 0.6 * P_XGB<br/>+ 0.4 * P_LSTM"]
-    end
-    
-    XGB_ARCH-->XGB_PERF
-    LSTM_ARCH-->LSTM_PERF
-    
-    XGB_PERF-->ENS
-    LSTM_PERF-->ENS
-    
-    style XGB_PERF fill:#A5D6A7
-    style LSTM_PERF fill:#90CAF9
+    XGB["XGBoost Baseline<br/>Primary production fallback"]
+    LSTM["LSTM Temporal<br/>Secondary model"]
+    ENS["Validation-Tuned Ensemble<br/>Candidate model"]
+    GATE["Selection Gate<br/>Use ensemble only if val F2 gain >= min_f2_gain"]
+    SELECT["selected_model + selected_threshold<br/>stored in ensemble_metrics.json"]
+
+    XGB --> GATE
+    LSTM --> ENS
+    XGB --> ENS
+    ENS --> GATE
+    GATE --> SELECT
+
+    style XGB fill:#A5D6A7
     style ENS fill:#FFD54F
+    style SELECT fill:#90CAF9
 ```
 
-## Data Flow
+## Inference Data Flow (Current)
 
 ```mermaid
 sequenceDiagram
-    actor Client
-    participant API
-    participant Cache
-    participant FS as Feature Store
-    participant DB as Database
-    
-    Client->>API: POST /predict
-    API->>Cache: Check cache
-    alt Cache hit
-        Cache-->>API: Return cached
-    else Cache miss
-        API->>FS: Get features
-        FS-->>API: Features
-        API->>API: Ensemble inference
-        API->>Cache: Cache result
-        API->>DB: Log prediction
-    end
-    API-->>Client: JSON response
+    actor User
+    participant UI as Streamlit / Client
+    participant API as FastAPI
+    participant M as ModelBundle
+    participant A as data/models artifacts
+
+    User->>UI: Submit sequence
+    UI->>API: POST /predict or /explain
+    API->>M: Validate sequence schema
+    M->>A: Load feature_names + scalers + models
+    M->>M: XGBoost / LSTM inference
+    M->>M: Apply selected_model policy
+    API-->>UI: JSON response
 ```
 
-## Deployment Architecture
+## Deployment Architecture (Current)
 
 ```mermaid
 graph TB
-    subgraph Clients["Clients"]
-        WEB["Web Dashboard"]
-        MOBILE["Mobile App"]
-        API_C["3rd-party APIs"]
+    subgraph Local["Local / Dev Runtime"]
+        TRAIN["Python CLI & Notebooks"]
+        API["FastAPI Service"]
+        ST["Streamlit Dashboard"]
     end
-    
-    subgraph Gateway["API Gateway"]
-        NGINX["NGINX Load Balancer"]
-        K8S["Kubernetes"]
+
+    subgraph Compose["Docker Compose Runtime"]
+        API_C["api container"]
+        REDIS["redis container"]
+        PG["postgres container"]
     end
-    
-    subgraph Services["Application Services"]
-        API1["FastAPI Pod 1"]
-        API2["FastAPI Pod 2"]
-        API3["FastAPI Pod N"]
-    end
-    
-    subgraph Data["State & Persistence"]
-        REDIS["Redis Cache"]
-        POSTGRES["PostgreSQL"]
-    end
-    
-    subgraph Models["Model Serving"]
-        MLSERVER["XGBoost + LSTM<br/>Ensemble Inference"]
-    end
-    
-    subgraph Monitoring["Monitoring"]
-        PROM["Prometheus"]
-        GRAFANA["Grafana"]
-    end
-    
-    WEB-->NGINX
-    MOBILE-->NGINX
-    API_C-->NGINX
-    NGINX-->K8S
-    K8S-->API1
-    K8S-->API2
-    K8S-->API3
-    API1-->MLSERVER
-    API2-->MLSERVER
-    API3-->MLSERVER
-    API1-->REDIS
-    API2-->POSTGRES
-    API3-->REDIS
-    API1-->PROM
-    API2-->PROM
-    API3-->PROM
-    PROM-->GRAFANA
-    
-    style K8S fill:#326CE5
-    style MLSERVER fill:#FF6B6B
-    style PROM fill:#E95D47
+
+    TRAIN --> API
+    API --> ST
+    API_C --> REDIS
+    API_C --> PG
 ```

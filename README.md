@@ -243,6 +243,20 @@ streamlit run streamlit_app.py
 
 Default URL: http://localhost:8501
 
+### Dashboard Preview
+
+**Overview**
+
+![Streamlit Overview](assets/streamlit_overview.png)
+
+**Ops Status**
+
+![Streamlit Ops](assets/streamlit_ops.png)
+
+**Live Inference**
+
+![Streamlit Live Inference](assets/streamlit_liveinference.png)
+
 ### 3b. Start With Docker Compose
 
 ```powershell
