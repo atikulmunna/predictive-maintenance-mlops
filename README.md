@@ -32,49 +32,50 @@ See [**Detailed Architecture Diagrams**](assets/architecture.md) for complete re
 
 ```mermaid
 graph TB
-    subgraph DL["Data Layer"]
-        DB[(PostgreSQL<br/>Data Lake)]
-        FS[(Redis<br/>Feature Store)]
-        MLFLOW[(MLflow<br/>Artifacts)]
+    subgraph D["Data & Artifacts"]
+        RAW["NASA Turbofan<br/>Raw Data"]
+        PROC["Processed Features<br/>data/processed/*.csv"]
+        MODELS["Model Artifacts<br/>data/models/*.json *.pkl *.h5"]
+        MLRUNS["MLflow Local Runs<br/>(optional)"]
     end
-    
-    subgraph ML["Model Layer"]
-        XGB["XGBoost<br/>validation-tuned weight<br/>F2: 0.9915"]
-        LSTM["LSTM + Attention<br/>validation-tuned weight<br/>F2: 0.8750"]
-    end
-    
-    subgraph IL["Inference Layer"]
-        API["FastAPI<br/>REST API"]
-        CACHE["Request Cache"]
-    end
-    
-    subgraph TP["Training Pipeline"]
-        PREPROCESS["Data Preprocessing"]
-        TRAIN["Model Training"]
-        EVAL["Evaluation"]
-    end
-    
-    subgraph MA["Monitoring"]
-        PROM["Prometheus"]
-        GRAFANA["Grafana"]
-    end
-    
-    DB -->|Load| PREPROCESS
-    PREPROCESS -->|Split| TRAIN
-    TRAIN -->|Save| MLFLOW
-    MLFLOW -->|Load| XGB
-    MLFLOW -->|Load| LSTM
-    XGB -->|Ensemble| API
-    LSTM -->|Ensemble| API
-    API -->|Cache| CACHE
-    API -->|Query| FS
-    TRAIN -->|Metrics| EVAL
-    EVAL -->|Log| PROM
-    PROM -->|Visualize| GRAFANA
 
-    style XGB fill:#A5D6A7
-    style LSTM fill:#90CAF9
+    subgraph T["Training & Automation"]
+        TR["trainer.py<br/>xgboost | lstm | ensemble | all"]
+        FLOW["prefect_flow.py<br/>local / prefect engines"]
+        DRIFT["drift_detection.py"]
+        RETRAIN["retraining_pipeline.py"]
+    end
+
+    subgraph S["Serving & UI"]
+        API["FastAPI<br/>/health /predict /explain"]
+        ST["Streamlit Dashboard<br/>streamlit_app.py"]
+        CLIENT["Client / User"]
+    end
+
+    RAW --> PROC
+    PROC --> TR
+    TR --> MODELS
+    FLOW --> TR
+    TR --> MLRUNS
+
+    PROC --> DRIFT
+    DRIFT --> MODELS
+    DRIFT --> RETRAIN
+    RETRAIN --> FLOW
+
+    MODELS --> API
+    CLIENT --> API
+    CLIENT --> ST
+    ST --> API
+
+    style RAW fill:#FFE0B2
+    style PROC fill:#E8F5E9
+    style MODELS fill:#FFF8E1
+    style FLOW fill:#C8E6C9
+    style DRIFT fill:#FFECB3
+    style RETRAIN fill:#D1C4E9
     style API fill:#FFD54F
+    style ST fill:#90CAF9
 ```
 
 **Current Benchmark (Test Set, updated 2026-02-07):**
