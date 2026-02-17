@@ -235,6 +235,14 @@ uvicorn src.serving.api:app --workers 3 --host 0.0.0.0 --port 8000
 
 Access API documentation: http://localhost:8000/docs
 
+### 3a. Start Streamlit Dashboard
+
+```powershell
+streamlit run streamlit_app.py
+```
+
+Default URL: http://localhost:8501
+
 ### 3b. Start With Docker Compose
 
 ```powershell
