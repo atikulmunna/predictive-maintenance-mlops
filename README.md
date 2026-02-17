@@ -316,6 +316,20 @@ python -m src.pipelines.retraining_pipeline ^
 Reads `data/models/drift_report.json`, applies retraining policy, and writes
 `data/models/retraining_decision.json`.
 
+### 8. One-Command Real Data E2E Check
+
+```powershell
+python scripts/e2e_real_check.py
+```
+
+Optional short re-train before checks:
+
+```powershell
+python scripts/e2e_real_check.py --run-training --epochs 2 --batch-size 64
+```
+
+Writes `data/models/e2e_real_check_report.json`.
+
 ---
 
 ## 📊 Dataset
