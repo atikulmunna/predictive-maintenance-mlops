@@ -36,4 +36,5 @@ memory-profiler==0.61.0
 
 # MLOps & Orchestration
 prefect==3.0.0rc10
-evidently==0.4.13  # Drift detection
+# Note: evidently==0.4.x depends on pydantic<2 and conflicts with Prefect 3 (pydantic>=2.7).
+# Current drift detection is implemented in src/monitoring/drift_detection.py without Evidently.
